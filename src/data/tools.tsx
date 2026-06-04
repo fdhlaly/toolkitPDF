@@ -89,11 +89,13 @@ export const tools = [
     description: "Add password protection to PDF files.",
     href: "/tools/protect",
     icon: <Lock size={22} />,
+    status: "ready" as const,
   },
   {
     title: "Unlock PDF",
     description: "Remove password protection from supported PDF files.",
     href: "/tools/unlock",
     icon: <Unlock size={22} />,
+    status: "ready" as const,
   },
 ];
