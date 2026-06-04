@@ -1,4 +1,4 @@
-const CACHE_NAME = "toolkitpdf-v2";
+const CACHE_NAME = "toolkitpdf-v4";
 
 const APP_SHELL = [
   "/",
@@ -9,14 +9,23 @@ const APP_SHELL = [
   "/icons/icon-512-maskable.png",
 ];
 
+const PDF_RUNTIME_ASSETS = ["/wasm/qpdf.wasm"];
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return Promise.allSettled(APP_SHELL.map((url) => cache.add(url)));
+      return Promise.allSettled([
+        ...APP_SHELL.map((url) => cache.add(url)),
+        ...PDF_RUNTIME_ASSETS.map((url) => cache.add(url)),
+      ]);
     }),
   );
+});
 
-  self.skipWaiting();
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("activate", (event) => {
@@ -49,15 +58,27 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (
-    url.pathname.startsWith("/_next/static/") ||
-    url.pathname.startsWith("/icons/") ||
-    url.pathname === "/manifest.webmanifest" ||
-    url.pathname.endsWith(".wasm")
-  ) {
+  if (isStaticAsset(url) || isPdfRuntimeAsset(url)) {
     event.respondWith(cacheFirst(request));
   }
 });
+
+function isStaticAsset(url) {
+  return (
+    url.pathname.startsWith("/_next/static/") ||
+    url.pathname.startsWith("/icons/") ||
+    url.pathname === "/manifest.webmanifest"
+  );
+}
+
+function isPdfRuntimeAsset(url) {
+  return (
+    url.pathname.startsWith("/wasm/") ||
+    url.pathname.startsWith("/workers/") ||
+    url.pathname.endsWith(".wasm") ||
+    url.pathname.endsWith(".worker.js")
+  );
+}
 
 async function cacheFirst(request) {
   const cache = await caches.open(CACHE_NAME);
