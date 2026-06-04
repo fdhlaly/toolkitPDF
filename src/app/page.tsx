@@ -1,5 +1,6 @@
 import { tools } from "@/data/tools";
 import ToolCard from "@/components/ToolCard";
+import InstallPWAButton from "@/components/InstallPWAButton";
 
 export default function Home() {
   return (
@@ -19,6 +20,7 @@ export default function Home() {
             <div className="hidden rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 md:block">
               No upload. No cloud. Process locally.
             </div>
+            <InstallPWAButton />
           </nav>
 
           <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
