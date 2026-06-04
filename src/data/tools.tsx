@@ -75,6 +75,7 @@ export const tools = [
     description: "Read text from scanned PDF pages using OCR.",
     href: "/tools/ocr",
     icon: <ScanText size={22} />,
+    status: "ready" as const,
   },
   {
     title: "Compress PDF",
