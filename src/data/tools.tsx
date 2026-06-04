@@ -61,6 +61,7 @@ export const tools = [
     description: "Convert JPG, PNG, or WebP images into a PDF.",
     href: "/tools/image-to-pdf",
     icon: <ImageIcon size={22} />,
+    status: "ready" as const,
   },
   {
     title: "Extract Text",
