@@ -54,6 +54,7 @@ export const tools = [
     description: "Automatically add page numbers to PDF files.",
     href: "/tools/page-numbers",
     icon: <Hash size={22} />,
+    status: "ready" as const,
   },
   {
     title: "Image to PDF",
