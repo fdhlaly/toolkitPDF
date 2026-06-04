@@ -81,6 +81,7 @@ export const tools = [
     description: "Reduce PDF file size for sharing and storage.",
     href: "/tools/compress",
     icon: <Minimize2 size={22} />,
+    status: "ready" as const,
   },
   {
     title: "Protect PDF",
