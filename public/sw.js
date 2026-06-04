@@ -1,7 +1,8 @@
-const CACHE_NAME = "toolkitpdf-v1";
+const CACHE_NAME = "toolkitpdf-v2";
 
 const APP_SHELL = [
   "/",
+  "/offline.html",
   "/manifest.webmanifest",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
@@ -88,8 +89,8 @@ async function networkFirst(request) {
     return networkResponse;
   } catch {
     const cachedResponse = await cache.match(request);
-    const fallbackResponse = await cache.match("/");
+    const offlineResponse = await cache.match("/offline.html");
 
-    return cachedResponse || fallbackResponse;
+    return cachedResponse || offlineResponse;
   }
 }
