@@ -68,6 +68,7 @@ export const tools = [
     description: "Extract readable text from PDF documents.",
     href: "/tools/extract-text",
     icon: <FileText size={22} />,
+    status: "ready" as const,
   },
   {
     title: "OCR PDF",
