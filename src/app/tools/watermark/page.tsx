@@ -1,11 +1,9 @@
 "use client";
 
-import PdfPreviewModal from "@/components/PdfPreviewModal";
-import Link from "next/link";
+import AppShell from "@/components/AppShell";
 import { PDFDocument, StandardFonts, degrees, rgb } from "pdf-lib";
 import {
-  ArrowLeft,
-  Eye,
+  Download,
   FileText,
   Loader2,
   Stamp,
@@ -13,7 +11,9 @@ import {
   UploadCloud,
   X,
 } from "lucide-react";
-import { ChangeEvent, useState } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
+
+type WatermarkPosition = "center" | "diagonal" | "bottom";
 
 const formatFileSize = (size: number) => {
   if (size < 1024 * 1024) {
@@ -25,16 +25,37 @@ const formatFileSize = (size: number) => {
 
 export default function WatermarkPdfPage() {
   const [file, setFile] = useState<File | null>(null);
-  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [originalPreviewUrl, setOriginalPreviewUrl] = useState("");
+  const [watermarkedPreviewUrl, setWatermarkedPreviewUrl] = useState("");
+  const [watermarkedBlob, setWatermarkedBlob] = useState<Blob | null>(null);
   const [pageCount, setPageCount] = useState(0);
   const [watermarkText, setWatermarkText] = useState("CONFIDENTIAL");
   const [fontSize, setFontSize] = useState(48);
   const [opacity, setOpacity] = useState(0.2);
-  const [position, setPosition] = useState<"center" | "diagonal" | "bottom">(
-    "diagonal",
-  );
+  const [position, setPosition] = useState<WatermarkPosition>("diagonal");
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    return () => {
+      if (originalPreviewUrl) {
+        URL.revokeObjectURL(originalPreviewUrl);
+      }
+    };
+  }, [originalPreviewUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (watermarkedPreviewUrl) {
+        URL.revokeObjectURL(watermarkedPreviewUrl);
+      }
+    };
+  }, [watermarkedPreviewUrl]);
+
+  const resetWatermarkedResult = () => {
+    setWatermarkedBlob(null);
+    setWatermarkedPreviewUrl("");
+  };
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     try {
@@ -46,20 +67,23 @@ export default function WatermarkPdfPage() {
 
       const isPdf =
         selectedFile.type === "application/pdf" ||
-        selectedFile.name.endsWith(".pdf");
+        selectedFile.name.toLowerCase().endsWith(".pdf");
 
       if (!isPdf) {
         setError("Only PDF files are allowed.");
+        event.target.value = "";
         return;
       }
 
       const arrayBuffer = await selectedFile.arrayBuffer();
       const pdf = await PDFDocument.load(arrayBuffer);
+      const previewUrl = URL.createObjectURL(selectedFile);
 
+      resetWatermarkedResult();
       setFile(selectedFile);
+      setOriginalPreviewUrl(previewUrl);
       setPageCount(pdf.getPageCount());
-    } catch (err) {
-      console.error(err);
+    } catch {
       setError(
         "Failed to read PDF file. Make sure the file is valid and not password-protected.",
       );
@@ -69,14 +93,35 @@ export default function WatermarkPdfPage() {
   };
 
   const clearFile = () => {
+    resetWatermarkedResult();
     setFile(null);
-    setPreviewFile(null);
+    setOriginalPreviewUrl("");
     setPageCount(0);
     setWatermarkText("CONFIDENTIAL");
     setFontSize(48);
     setOpacity(0.2);
     setPosition("diagonal");
     setError("");
+  };
+
+  const handleWatermarkTextChange = (value: string) => {
+    resetWatermarkedResult();
+    setWatermarkText(value);
+  };
+
+  const handleFontSizeChange = (value: number) => {
+    resetWatermarkedResult();
+    setFontSize(value);
+  };
+
+  const handleOpacityChange = (value: number) => {
+    resetWatermarkedResult();
+    setOpacity(value);
+  };
+
+  const handlePositionChange = (value: WatermarkPosition) => {
+    resetWatermarkedResult();
+    setPosition(value);
   };
 
   const addWatermark = async () => {
@@ -147,138 +192,118 @@ export default function WatermarkPdfPage() {
       pdfView.set(pdfBytes);
 
       const blob = new Blob([pdfArrayBuffer], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
+      const previewUrl = URL.createObjectURL(blob);
 
-      const originalName = file.name.replace(/\.pdf$/i, "");
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${originalName}-watermarked-toolkitPDF.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error(err);
+      setWatermarkedBlob(blob);
+      setWatermarkedPreviewUrl(previewUrl);
+    } catch {
       setError("Failed to add watermark to PDF.");
     } finally {
       setIsProcessing(false);
     }
   };
 
+  const downloadWatermarkedPdf = () => {
+    if (!watermarkedBlob || !file) {
+      setError("No watermarked PDF available to download.");
+      return;
+    }
+
+    const originalName = file.name.replace(/\.pdf$/i, "");
+    const url = URL.createObjectURL(watermarkedBlob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${originalName}-watermarked-toolkitPDF.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+  };
+
+  const hasWatermarkedResult = Boolean(watermarkedBlob);
+  const activePreviewUrl = watermarkedPreviewUrl || originalPreviewUrl;
+
   return (
-    <>
-      <main className="min-h-screen overflow-x-hidden bg-slate-50">
-        <section className="border-b border-slate-200 bg-white">
-          <div className="mx-auto max-w-5xl px-5 py-6 md:px-8">
-            <Link
-              href="/"
-              className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-950"
-            >
-              <ArrowLeft size={18} />
-              Back to tools
-            </Link>
+    <AppShell
+      title="Watermark PDF"
+      description="Add text watermark to all PDF pages"
+      activeHref="/tools/watermark"
+      showMobileBackLink
+      contentClassName="flex-1 overflow-hidden"
+    >
+      <div className="grid h-full overflow-hidden lg:grid-cols-[420px_1fr]">
+        <section className="overflow-y-auto border-b border-slate-200 p-4 md:p-5 lg:border-b-0 lg:border-r">
+          <div className="space-y-4">
+            <label className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center transition hover:border-blue-300 hover:bg-blue-50/40">
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                onChange={handleFileChange}
+              />
 
-            <div>
-              <p className="mb-3 inline-flex rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
-                Ready tool
+              <div className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-white text-blue-600 shadow-sm">
+                <UploadCloud size={26} />
+              </div>
+
+              <h2 className="text-sm font-semibold text-slate-950">
+                Drop or select PDF
+              </h2>
+
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                Upload one PDF, set watermark options, then apply.
               </p>
-
-              <h1 className="text-3xl font-bold tracking-tight text-slate-950 md:text-5xl">
-                Watermark PDF
-              </h1>
-
-              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-                Add text watermark to all pages of your PDF. Choose position,
-                size, and opacity before downloading.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="mx-auto grid w-full max-w-5xl gap-6 overflow-hidden px-4 py-8 sm:px-5 md:px-8 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="min-w-0 space-y-5">
-            {!file && (
-              <label className="flex min-h-64 cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-300 bg-white p-8 text-center shadow-sm transition hover:border-blue-300 hover:bg-blue-50/30">
-                <input
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-
-                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                  <UploadCloud size={32} />
-                </div>
-
-                <h2 className="text-lg font-semibold text-slate-950">
-                  Upload PDF file
-                </h2>
-
-                <p className="mt-2 max-w-md text-sm leading-6 text-slate-600">
-                  Select one PDF file from your device.
-                </p>
-
-                <p className="mt-4 text-xs font-medium text-slate-400">
-                  PDF only • Processed locally in your browser
-                </p>
-              </label>
-            )}
+            </label>
 
             {error && (
               <div className="flex items-start justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                 <p>{error}</p>
-                <button onClick={() => setError("")}>
+                <button type="button" onClick={() => setError("")}>
                   <X size={18} />
                 </button>
               </div>
             )}
 
             {file && (
-              <div className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="mb-4 flex items-center justify-between gap-4">
                   <div>
-                    <h2 className="font-semibold text-slate-950">
+                    <h2 className="text-sm font-semibold text-slate-950">
                       Selected file
                     </h2>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-xs text-slate-500">
                       Total pages: {pageCount}
                     </p>
                   </div>
 
                   <button
+                    type="button"
                     onClick={clearFile}
-                    className="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={15} />
                     Clear
                   </button>
                 </div>
 
-                <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 p-4 sm:flex-row sm:items-center">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-                    <FileText size={22} />
+                <div className="flex items-start gap-3 rounded-2xl border border-slate-200 p-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                    <FileText size={20} />
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-slate-950">
+                    <p className="truncate text-sm font-semibold text-slate-950">
                       {file.name}
                     </p>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-xs text-slate-500">
                       {formatFileSize(file.size)}
                     </p>
                   </div>
-
-                  <button
-                    onClick={() => setPreviewFile(file)}
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
-                  >
-                    <Eye size={17} />
-                    Preview
-                  </button>
                 </div>
 
-                <div className="mt-6 space-y-5">
+                <div className="mt-5 space-y-5">
                   <div>
                     <label
                       htmlFor="watermarkText"
@@ -291,55 +316,55 @@ export default function WatermarkPdfPage() {
                       id="watermarkText"
                       type="text"
                       value={watermarkText}
-                      onChange={(event) => setWatermarkText(event.target.value)}
+                      onChange={(event) =>
+                        handleWatermarkTextChange(event.target.value)
+                      }
                       placeholder="Example: CONFIDENTIAL"
-                      className="mt-2 block w-full max-w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
+                      className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
                     />
                   </div>
 
-                  <div className="grid gap-5 md:grid-cols-2">
-                    <div>
-                      <label
-                        htmlFor="fontSize"
-                        className="text-sm font-semibold text-slate-950"
-                      >
-                        Font size: {fontSize}px
-                      </label>
+                  <div>
+                    <label
+                      htmlFor="fontSize"
+                      className="text-sm font-semibold text-slate-950"
+                    >
+                      Font size: {fontSize}px
+                    </label>
 
-                      <input
-                        id="fontSize"
-                        type="range"
-                        min="16"
-                        max="96"
-                        value={fontSize}
-                        onChange={(event) =>
-                          setFontSize(Number(event.target.value))
-                        }
-                        className="mt-3 w-full"
-                      />
-                    </div>
+                    <input
+                      id="fontSize"
+                      type="range"
+                      min="16"
+                      max="96"
+                      value={fontSize}
+                      onChange={(event) =>
+                        handleFontSizeChange(Number(event.target.value))
+                      }
+                      className="mt-3 w-full"
+                    />
+                  </div>
 
-                    <div>
-                      <label
-                        htmlFor="opacity"
-                        className="text-sm font-semibold text-slate-950"
-                      >
-                        Opacity: {Math.round(opacity * 100)}%
-                      </label>
+                  <div>
+                    <label
+                      htmlFor="opacity"
+                      className="text-sm font-semibold text-slate-950"
+                    >
+                      Opacity: {Math.round(opacity * 100)}%
+                    </label>
 
-                      <input
-                        id="opacity"
-                        type="range"
-                        min="0.05"
-                        max="0.8"
-                        step="0.05"
-                        value={opacity}
-                        onChange={(event) =>
-                          setOpacity(Number(event.target.value))
-                        }
-                        className="mt-3 w-full"
-                      />
-                    </div>
+                    <input
+                      id="opacity"
+                      type="range"
+                      min="0.05"
+                      max="0.8"
+                      step="0.05"
+                      value={opacity}
+                      onChange={(event) =>
+                        handleOpacityChange(Number(event.target.value))
+                      }
+                      className="mt-3 w-full"
+                    />
                   </div>
 
                   <div>
@@ -347,7 +372,7 @@ export default function WatermarkPdfPage() {
                       Position
                     </label>
 
-                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <div className="mt-2 grid grid-cols-3 gap-2">
                       {[
                         { label: "Diagonal", value: "diagonal" },
                         { label: "Center", value: "center" },
@@ -357,11 +382,11 @@ export default function WatermarkPdfPage() {
                           key={item.value}
                           type="button"
                           onClick={() =>
-                            setPosition(
-                              item.value as "center" | "diagonal" | "bottom",
+                            handlePositionChange(
+                              item.value as WatermarkPosition,
                             )
                           }
-                          className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                          className={`rounded-2xl border px-3 py-3 text-sm font-semibold transition ${
                             position === item.value
                               ? "border-blue-600 bg-blue-600 text-white"
                               : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
@@ -375,68 +400,114 @@ export default function WatermarkPdfPage() {
                 </div>
               </div>
             )}
-          </div>
-
-          <aside className="h-fit min-w-0 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 lg:sticky lg:top-6">
-            <h2 className="font-semibold text-slate-950">Watermark summary</h2>
-
-            <div className="mt-5 space-y-4 text-sm">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <span className="text-slate-500">File selected</span>
-                <span className="font-semibold text-slate-950">
-                  {file ? "Yes" : "No"}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <span className="text-slate-500">Total pages</span>
-                <span className="font-semibold text-slate-950">
-                  {pageCount || "-"}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <span className="text-slate-500">Position</span>
-                <span className="font-semibold capitalize text-slate-950">
-                  {position}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <span className="text-slate-500">Upload to server</span>
-                <span className="font-semibold text-emerald-600">No</span>
-              </div>
-            </div>
 
             <button
-              onClick={addWatermark}
-              disabled={isProcessing || !file}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              type="button"
+              onClick={
+                hasWatermarkedResult ? downloadWatermarkedPdf : addWatermark
+              }
+              disabled={
+                isProcessing ||
+                (!hasWatermarkedResult && (!file || !watermarkText.trim()))
+              }
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               {isProcessing ? (
                 <>
                   <Loader2 size={18} className="animate-spin" />
-                  Processing...
+                  Applying...
+                </>
+              ) : hasWatermarkedResult ? (
+                <>
+                  <Download size={18} />
+                  Download Watermarked PDF
                 </>
               ) : (
                 <>
                   <Stamp size={18} />
-                  Add Watermark & Download
+                  Add Watermark
                 </>
               )}
             </button>
 
-            <p className="mt-4 text-xs leading-5 text-slate-500">
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <p className="font-semibold text-slate-950">
+                  {pageCount || "-"}
+                </p>
+                <p className="mt-1 text-slate-500">Pages</p>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <p className="font-semibold capitalize text-slate-950">
+                  {position}
+                </p>
+                <p className="mt-1 text-slate-500">Position</p>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <p className="font-semibold text-slate-950">
+                  {hasWatermarkedResult ? "Ready" : "-"}
+                </p>
+                <p className="mt-1 text-slate-500">Result</p>
+              </div>
+            </div>
+
+            <p className="text-xs leading-5 text-slate-500">
               Watermark will be added to all PDF pages.
             </p>
-          </aside>
+          </div>
         </section>
-      </main>
 
-      <PdfPreviewModal
-        file={previewFile}
-        onClose={() => setPreviewFile(null)}
-      />
-    </>
+        <section className="min-h-130 bg-slate-100 p-4 md:p-5">
+          <div className="flex h-full min-h-120 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white">
+            <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3">
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-slate-950">
+                  {hasWatermarkedResult
+                    ? "Watermarked preview"
+                    : "Original preview"}
+                </h2>
+                <p className="truncate text-xs text-slate-500">
+                  {file
+                    ? hasWatermarkedResult
+                      ? "Watermarked PDF is ready"
+                      : file.name
+                    : "No file selected"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex-1 bg-slate-50">
+              {activePreviewUrl ? (
+                <iframe
+                  src={activePreviewUrl}
+                  title={
+                    hasWatermarkedResult
+                      ? "Watermarked PDF preview"
+                      : "Original PDF preview"
+                  }
+                  className="h-full w-full"
+                />
+              ) : (
+                <div className="flex h-full min-h-105 items-center justify-center p-6">
+                  <div className="text-center">
+                    <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm">
+                      <FileText size={28} />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-950">
+                      PDF preview will appear here
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Upload a PDF to preview it automatically.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
+    </AppShell>
   );
 }
