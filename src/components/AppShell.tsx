@@ -5,6 +5,7 @@ import { tools } from "@/data/tools";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
+import Image from "next/image";
 
 type AppShellProps = {
   title: string;
@@ -28,8 +29,15 @@ const AppShell = ({
       <aside className="hidden border-r border-slate-200 bg-slate-950 p-4 text-white lg:flex lg:flex-col">
         <div className="mb-8">
           <Link href="/" className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-white text-sm font-bold text-slate-950">
-              PDF
+            <div className="flex size-10 items-center justify-center bg-white rounded-xl text-sm font-bold text-slate-950">
+              <Image
+                src="/icons/icon-512.png"
+                alt="logo"
+                width={100}
+                height={100}
+                className="rounded-xl"
+                priority
+              />
             </div>
 
             <div>
