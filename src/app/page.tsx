@@ -26,7 +26,7 @@ export default function Home() {
             className="group rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
           >
             <div className="mb-4 flex items-center justify-between">
-              <div className="flex size-11 items-center justify-center rounded-xl bg-slate-100 text-sm font-bold text-slate-700">
+              <div className="flex size-11 items-center justify-center rounded-xl text-sm font-bold text-slate-700 bg-red-900">
                 PDF
               </div>
 
