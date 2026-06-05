@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
+import AppShell from "@/components/AppShell";
 import { PDFDocument } from "pdf-lib";
 import {
   ArrowDown,
-  ArrowLeft,
   ArrowUp,
   Download,
   FileImage,
@@ -87,8 +86,11 @@ export default function ImageToPdfPage() {
   const [images, setImages] = useState<ImageFileItem[]>([]);
   const [pageMode, setPageMode] = useState<PageMode>("fit-image");
   const [margin, setMargin] = useState(0);
+  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState("");
+
   const imagesRef = useRef<ImageFileItem[]>([]);
 
   useEffect(() => {
@@ -100,8 +102,21 @@ export default function ImageToPdfPage() {
       imagesRef.current.forEach((item) => {
         URL.revokeObjectURL(item.previewUrl);
       });
+
+      if (pdfPreviewUrl) {
+        URL.revokeObjectURL(pdfPreviewUrl);
+      }
     };
-  }, []);
+  }, [pdfPreviewUrl]);
+
+  const resetPdfResult = () => {
+    if (pdfPreviewUrl) {
+      URL.revokeObjectURL(pdfPreviewUrl);
+    }
+
+    setPdfBlob(null);
+    setPdfPreviewUrl("");
+  };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files || []);
@@ -119,11 +134,19 @@ export default function ImageToPdfPage() {
       previewUrl: URL.createObjectURL(file),
     }));
 
+    if (mappedImages.length === 0) {
+      event.target.value = "";
+      return;
+    }
+
+    resetPdfResult();
     setImages((prev) => [...prev, ...mappedImages]);
     event.target.value = "";
   };
 
   const removeImage = (id: string) => {
+    resetPdfResult();
+
     setImages((prev) => {
       const targetImage = prev.find((item) => item.id === id);
 
@@ -136,6 +159,8 @@ export default function ImageToPdfPage() {
   };
 
   const clearImages = () => {
+    resetPdfResult();
+
     images.forEach((item) => {
       URL.revokeObjectURL(item.previewUrl);
     });
@@ -145,6 +170,8 @@ export default function ImageToPdfPage() {
   };
 
   const moveImage = (index: number, direction: "up" | "down") => {
+    resetPdfResult();
+
     setImages((prev) => {
       const newImages = [...prev];
       const targetIndex = direction === "up" ? index - 1 : index + 1;
@@ -162,9 +189,20 @@ export default function ImageToPdfPage() {
     });
   };
 
+  const handlePageModeChange = (value: PageMode) => {
+    resetPdfResult();
+    setPageMode(value);
+  };
+
+  const handleMarginChange = (value: number) => {
+    resetPdfResult();
+    setMargin(value);
+  };
+
   const createPdfFromImages = async () => {
     try {
       setError("");
+      resetPdfResult();
 
       if (images.length === 0) {
         setError("Please upload at least one image.");
@@ -243,16 +281,10 @@ export default function ImageToPdfPage() {
       pdfView.set(pdfBytes);
 
       const blob = new Blob([pdfArrayBuffer], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
+      const previewUrl = URL.createObjectURL(blob);
 
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "images-toolkitPDF.pdf";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      URL.revokeObjectURL(url);
+      setPdfBlob(blob);
+      setPdfPreviewUrl(previewUrl);
     } catch {
       setError("Failed to convert images to PDF.");
     } finally {
@@ -260,162 +292,156 @@ export default function ImageToPdfPage() {
     }
   };
 
+  const downloadPdf = () => {
+    if (!pdfBlob) {
+      setError("No PDF available to download.");
+      return;
+    }
+
+    const url = URL.createObjectURL(pdfBlob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "images-toolkitPDF.pdf";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+  };
+
+  const hasPdfResult = Boolean(pdfBlob);
+
   return (
-    <main className="min-h-screen overflow-x-hidden bg-slate-50">
-      <section className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-5xl px-5 py-6 md:px-8">
-          <Link
-            href="/"
-            className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-950"
-          >
-            <ArrowLeft size={18} />
-            Back to tools
-          </Link>
+    <AppShell
+      title="Image to PDF"
+      description="Convert JPG, PNG, or WebP images into one PDF"
+      activeHref="/tools/image-to-pdf"
+      showMobileBackLink
+      contentClassName="flex-1 overflow-hidden"
+    >
+      <div className="grid h-full overflow-hidden lg:grid-cols-[420px_1fr]">
+        <section className="overflow-y-auto border-b border-slate-200 p-4 md:p-5 lg:border-b-0 lg:border-r">
+          <div className="space-y-4">
+            <label className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center transition hover:border-blue-300 hover:bg-blue-50/40">
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                multiple
+                className="hidden"
+                onChange={handleFileChange}
+              />
 
-          <div>
-            <p className="mb-3 inline-flex rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
-              Ready tool
-            </p>
+              <div className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-white text-blue-600 shadow-sm">
+                <UploadCloud size={26} />
+              </div>
 
-            <h1 className="text-3xl font-bold tracking-tight text-slate-950 md:text-5xl">
-              Image to PDF
-            </h1>
+              <h2 className="text-sm font-semibold text-slate-950">
+                Drop or select images
+              </h2>
 
-            <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-              Convert JPG, PNG, or WebP images into one PDF file. Arrange the
-              image order before downloading.
-            </p>
-          </div>
-        </div>
-      </section>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                Add JPG, PNG, or WebP images, arrange them, then convert.
+              </p>
+            </label>
 
-      <section className="mx-auto grid w-full max-w-5xl gap-6 overflow-hidden px-4 py-8 sm:px-5 md:px-8 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="min-w-0 space-y-5">
-          <label className="flex min-h-64 cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-300 bg-white p-8 text-center shadow-sm transition hover:border-blue-300 hover:bg-blue-50/30">
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
-              multiple
-              className="hidden"
-              onChange={handleFileChange}
-            />
-
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-              <UploadCloud size={32} />
-            </div>
-
-            <h2 className="text-lg font-semibold text-slate-950">
-              Upload images
-            </h2>
-
-            <p className="mt-2 max-w-md text-sm leading-6 text-slate-600">
-              Select one or more images from your device.
-            </p>
-
-            <p className="mt-4 text-xs font-medium text-slate-400">
-              JPG, PNG, WebP • Processed locally in your browser
-            </p>
-          </label>
-
-          {error && (
-            <div className="flex items-start justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-              <p>{error}</p>
-              <button onClick={() => setError("")}>
-                <X size={18} />
-              </button>
-            </div>
-          )}
-
-          {images.length > 0 && (
-            <div className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-              <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="font-semibold text-slate-950">
-                    Selected images
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    The PDF will follow this order.
-                  </p>
-                </div>
-
-                <button
-                  onClick={clearImages}
-                  className="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-                >
-                  <Trash2 size={16} />
-                  Clear
+            {error && (
+              <div className="flex items-start justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                <p>{error}</p>
+                <button type="button" onClick={() => setError("")}>
+                  <X size={18} />
                 </button>
               </div>
+            )}
 
-              <div className="space-y-3">
-                {images.map((item, index) => (
-                  <div
-                    key={item.id}
-                    className="flex flex-col gap-3 rounded-2xl border border-slate-200 p-4 sm:flex-row sm:items-center"
-                  >
-                    <div
-                      className="h-20 w-full shrink-0 rounded-xl bg-slate-100 bg-cover bg-center sm:w-20"
-                      style={{ backgroundImage: `url(${item.previewUrl})` }}
-                    />
-
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium text-slate-950">
-                        {index + 1}. {item.file.name}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        {formatFileSize(item.file.size)}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-1 self-end sm:self-auto">
-                      <button
-                        onClick={() => moveImage(index, "up")}
-                        disabled={index === 0}
-                        className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30"
-                        title="Move up"
-                      >
-                        <ArrowUp size={17} />
-                      </button>
-
-                      <button
-                        onClick={() => moveImage(index, "down")}
-                        disabled={index === images.length - 1}
-                        className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30"
-                        title="Move down"
-                      >
-                        <ArrowDown size={17} />
-                      </button>
-
-                      <button
-                        onClick={() => removeImage(item.id)}
-                        className="rounded-lg p-2 text-slate-500 transition hover:bg-red-50 hover:text-red-600"
-                        title="Remove image"
-                      >
-                        <Trash2 size={17} />
-                      </button>
-                    </div>
+            {images.length > 0 && (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="mb-4 flex items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-sm font-semibold text-slate-950">
+                      Selected images
+                    </h2>
+                    <p className="mt-1 text-xs text-slate-500">
+                      The PDF follows this order.
+                    </p>
                   </div>
-                ))}
+
+                  <button
+                    type="button"
+                    onClick={clearImages}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                  >
+                    <Trash2 size={15} />
+                    Clear
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {images.map((item, index) => (
+                    <div
+                      key={item.id}
+                      className="rounded-2xl border border-slate-200 bg-white p-3 transition hover:bg-slate-50"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className="size-14 shrink-0 rounded-xl bg-slate-100 bg-cover bg-center"
+                          style={{
+                            backgroundImage: `url(${item.previewUrl})`,
+                          }}
+                        />
+
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-slate-950">
+                            {index + 1}. {item.file.name}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {formatFileSize(item.file.size)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => moveImage(index, "up")}
+                          disabled={index === 0}
+                          className="rounded-lg p-2 text-slate-500 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-30"
+                          title="Move up"
+                        >
+                          <ArrowUp size={16} />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => moveImage(index, "down")}
+                          disabled={index === images.length - 1}
+                          className="rounded-lg p-2 text-slate-500 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-30"
+                          title="Move down"
+                        >
+                          <ArrowDown size={16} />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => removeImage(item.id)}
+                          className="rounded-lg p-2 text-slate-500 transition hover:bg-red-50 hover:text-red-600"
+                          title="Remove image"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
 
-        <aside className="h-fit min-w-0 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 lg:sticky lg:top-6">
-          <h2 className="font-semibold text-slate-950">Image PDF summary</h2>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <h2 className="text-sm font-semibold text-slate-950">
+                PDF settings
+              </h2>
 
-          <div className="mt-5 space-y-4 text-sm">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <span className="text-slate-500">Images selected</span>
-              <span className="font-semibold text-slate-950">
-                {images.length}
-              </span>
-            </div>
-
-            <div className="border-b border-slate-100 pb-3">
-              <span className="text-slate-500">Page size</span>
-
-              <div className="mt-3 grid gap-2">
+              <div className="mt-4 grid gap-2">
                 {[
                   { label: "Fit to image", value: "fit-image" },
                   { label: "A4 Portrait", value: "a4-portrait" },
@@ -424,7 +450,7 @@ export default function ImageToPdfPage() {
                   <button
                     key={item.value}
                     type="button"
-                    onClick={() => setPageMode(item.value as PageMode)}
+                    onClick={() => handlePageModeChange(item.value as PageMode)}
                     className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
                       pageMode === item.value
                         ? "border-blue-600 bg-blue-600 text-white"
@@ -435,64 +461,150 @@ export default function ImageToPdfPage() {
                   </button>
                 ))}
               </div>
+
+              <div className="mt-5">
+                <label
+                  htmlFor="margin"
+                  className="text-sm font-medium text-slate-500"
+                >
+                  Margin: {margin}px
+                </label>
+
+                <input
+                  id="margin"
+                  type="range"
+                  min="0"
+                  max="72"
+                  value={margin}
+                  disabled={pageMode === "fit-image"}
+                  onChange={(event) =>
+                    handleMarginChange(Number(event.target.value))
+                  }
+                  className="mt-3 w-full disabled:opacity-40"
+                />
+
+                {pageMode === "fit-image" && (
+                  <p className="mt-2 text-xs leading-5 text-slate-400">
+                    Margin is disabled when page size follows the image.
+                  </p>
+                )}
+              </div>
             </div>
 
-            <div className="border-b border-slate-100 pb-3">
-              <label
-                htmlFor="margin"
-                className="text-sm font-medium text-slate-500"
-              >
-                Margin: {margin}px
-              </label>
+            <button
+              type="button"
+              onClick={hasPdfResult ? downloadPdf : createPdfFromImages}
+              disabled={isProcessing || (!hasPdfResult && images.length === 0)}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  Converting...
+                </>
+              ) : hasPdfResult ? (
+                <>
+                  <Download size={18} />
+                  Download PDF
+                </>
+              ) : (
+                <>
+                  <FileImage size={18} />
+                  Convert to PDF
+                </>
+              )}
+            </button>
 
-              <input
-                id="margin"
-                type="range"
-                min="0"
-                max="72"
-                value={margin}
-                disabled={pageMode === "fit-image"}
-                onChange={(event) => setMargin(Number(event.target.value))}
-                className="mt-3 w-full disabled:opacity-40"
-              />
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <p className="font-semibold text-slate-950">{images.length}</p>
+                <p className="mt-1 text-slate-500">Images</p>
+              </div>
 
-              {pageMode === "fit-image" && (
-                <p className="mt-2 text-xs leading-5 text-slate-400">
-                  Margin is disabled when page size follows the image.
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <p className="font-semibold text-slate-950">
+                  {hasPdfResult ? "Ready" : "-"}
                 </p>
+                <p className="mt-1 text-slate-500">Result</p>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <p className="font-semibold text-emerald-600">No</p>
+                <p className="mt-1 text-slate-500">Upload</p>
+              </div>
+            </div>
+
+            <p className="text-xs leading-5 text-slate-500">
+              Each image will become one PDF page.
+            </p>
+          </div>
+        </section>
+
+        <section className="min-h-130 bg-slate-100 p-4 md:p-5">
+          <div className="flex h-full min-h-120 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white">
+            <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3">
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-slate-950">
+                  {hasPdfResult ? "PDF preview" : "Image preview"}
+                </h2>
+                <p className="truncate text-xs text-slate-500">
+                  {hasPdfResult
+                    ? "Generated PDF is ready"
+                    : images.length > 0
+                      ? `${images.length} image(s) selected`
+                      : "No image selected"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto bg-slate-50 p-4">
+              {pdfPreviewUrl ? (
+                <iframe
+                  src={pdfPreviewUrl}
+                  title="Generated PDF preview"
+                  className="h-full min-h-105 w-full rounded-2xl border border-slate-200 bg-white"
+                />
+              ) : images.length > 0 ? (
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {images.map((item, index) => (
+                    <div
+                      key={item.id}
+                      className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
+                    >
+                      <div
+                        className="aspect-4/3 bg-slate-100 bg-cover bg-center"
+                        style={{
+                          backgroundImage: `url(${item.previewUrl})`,
+                        }}
+                      />
+
+                      <div className="border-t border-slate-100 p-3">
+                        <p className="truncate text-xs font-semibold text-slate-950">
+                          {index + 1}. {item.file.name}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex h-full min-h-105 items-center justify-center p-6">
+                  <div className="text-center">
+                    <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm">
+                      <FileImage size={28} />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-950">
+                      Image preview will appear here
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Upload images to preview them automatically.
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
-
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <span className="text-slate-500">Upload to server</span>
-              <span className="font-semibold text-emerald-600">No</span>
-            </div>
           </div>
-
-          <button
-            onClick={createPdfFromImages}
-            disabled={isProcessing || images.length === 0}
-            className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-          >
-            {isProcessing ? (
-              <>
-                <Loader2 size={18} className="animate-spin" />
-                Processing...
-              </>
-            ) : (
-              <>
-                <Download size={18} />
-                Convert & Download
-              </>
-            )}
-          </button>
-
-          <div className="mt-4 flex items-start gap-2 text-xs leading-5 text-slate-500">
-            <FileImage size={16} className="mt-0.5 shrink-0" />
-            <p>Each image will become one PDF page.</p>
-          </div>
-        </aside>
-      </section>
-    </main>
+        </section>
+      </div>
+    </AppShell>
   );
 }
