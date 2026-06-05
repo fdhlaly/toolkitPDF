@@ -1,12 +1,9 @@
 "use client";
 
-import PdfPreviewModal from "@/components/PdfPreviewModal";
-import Link from "next/link";
+import AppShell from "@/components/AppShell";
 import { PDFDocument } from "pdf-lib";
 import {
-  ArrowLeft,
   Download,
-  Eye,
   FileText,
   Loader2,
   Minimize2,
@@ -14,7 +11,7 @@ import {
   UploadCloud,
   X,
 } from "lucide-react";
-import { ChangeEvent, useState } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
 
 const formatFileSize = (size: number) => {
   if (size < 1024 * 1024) {
@@ -25,25 +22,42 @@ const formatFileSize = (size: number) => {
 };
 
 const calculateReduction = (originalSize: number, newSize: number) => {
-  if (originalSize <= 0) return 0;
+  if (originalSize <= 0 || newSize <= 0) return 0;
 
   return Math.max(0, ((originalSize - newSize) / originalSize) * 100);
 };
 
 export default function CompressPdfPage() {
   const [file, setFile] = useState<File | null>(null);
-  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [originalPreviewUrl, setOriginalPreviewUrl] = useState("");
+  const [compressedPreviewUrl, setCompressedPreviewUrl] = useState("");
   const [pageCount, setPageCount] = useState(0);
   const [compressedBlob, setCompressedBlob] = useState<Blob | null>(null);
   const [compressedSize, setCompressedSize] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    return () => {
+      if (originalPreviewUrl) {
+        URL.revokeObjectURL(originalPreviewUrl);
+      }
+
+      if (compressedPreviewUrl) {
+        URL.revokeObjectURL(compressedPreviewUrl);
+      }
+    };
+  }, [originalPreviewUrl, compressedPreviewUrl]);
+
+  const resetCompressedResult = () => {
+    setCompressedBlob(null);
+    setCompressedSize(0);
+    setCompressedPreviewUrl("");
+  };
+
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     try {
       setError("");
-      setCompressedBlob(null);
-      setCompressedSize(0);
 
       const selectedFile = event.target.files?.[0];
 
@@ -55,13 +69,23 @@ export default function CompressPdfPage() {
 
       if (!isPdf) {
         setError("Only PDF files are allowed.");
+        event.target.value = "";
         return;
       }
 
       const arrayBuffer = await selectedFile.arrayBuffer();
       const pdf = await PDFDocument.load(arrayBuffer);
 
+      resetCompressedResult();
+
+      if (originalPreviewUrl) {
+        URL.revokeObjectURL(originalPreviewUrl);
+      }
+
+      const previewUrl = URL.createObjectURL(selectedFile);
+
       setFile(selectedFile);
+      setOriginalPreviewUrl(previewUrl);
       setPageCount(pdf.getPageCount());
     } catch {
       setError(
@@ -73,19 +97,22 @@ export default function CompressPdfPage() {
   };
 
   const clearFile = () => {
+    resetCompressedResult();
+
+    if (originalPreviewUrl) {
+      URL.revokeObjectURL(originalPreviewUrl);
+    }
+
     setFile(null);
-    setPreviewFile(null);
+    setOriginalPreviewUrl("");
     setPageCount(0);
-    setCompressedBlob(null);
-    setCompressedSize(0);
     setError("");
   };
 
   const compressPdf = async () => {
     try {
       setError("");
-      setCompressedBlob(null);
-      setCompressedSize(0);
+      resetCompressedResult();
 
       if (!file) {
         setError("Please upload a PDF file first.");
@@ -111,20 +138,11 @@ export default function CompressPdfPage() {
         type: "application/pdf",
       });
 
+      const previewUrl = URL.createObjectURL(blob);
+
       setCompressedBlob(blob);
       setCompressedSize(blob.size);
-
-      const url = URL.createObjectURL(blob);
-      const originalName = file.name.replace(/\.pdf$/i, "");
-
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${originalName}-compressed-toolkitPDF.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      URL.revokeObjectURL(url);
+      setCompressedPreviewUrl(previewUrl);
     } catch {
       setError(
         "Failed to compress PDF. Make sure the file is valid and not password-protected.",
@@ -154,126 +172,94 @@ export default function CompressPdfPage() {
   };
 
   const reduction = file ? calculateReduction(file.size, compressedSize) : 0;
+  const hasCompressedResult = Boolean(compressedBlob);
+  const activePreviewUrl = compressedPreviewUrl || originalPreviewUrl;
 
   return (
-    <>
-      <main className="min-h-screen overflow-x-hidden bg-slate-50">
-        <section className="border-b border-slate-200 bg-white">
-          <div className="mx-auto max-w-5xl px-5 py-6 md:px-8">
-            <Link
-              href="/"
-              className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-950"
-            >
-              <ArrowLeft size={18} />
-              Back to tools
-            </Link>
+    <AppShell
+      title="Compress PDF"
+      description="Optimize PDF size directly in your browser"
+      activeHref="/tools/compress"
+      showMobileBackLink
+      contentClassName="flex-1 overflow-hidden"
+    >
+      <div className="grid h-full overflow-hidden lg:grid-cols-[420px_1fr]">
+        <section className="overflow-y-auto border-b border-slate-200 p-4 md:p-5 lg:border-b-0 lg:border-r">
+          <div className="space-y-4">
+            <label className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center transition hover:border-blue-300 hover:bg-blue-50/40">
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                onChange={handleFileChange}
+              />
 
-            <div>
-              <p className="mb-3 inline-flex rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
-                Ready tool
+              <div className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-white text-blue-600 shadow-sm">
+                <UploadCloud size={26} />
+              </div>
+
+              <h2 className="text-sm font-semibold text-slate-950">
+                Drop or select PDF
+              </h2>
+
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                Upload one PDF, compress it, then download the result.
               </p>
-
-              <h1 className="text-3xl font-bold tracking-tight text-slate-950 md:text-5xl">
-                Compress PDF
-              </h1>
-
-              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-                Optimize your PDF file size directly in the browser. Best for
-                PDFs with compressible internal structure.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="mx-auto grid w-full max-w-5xl gap-6 overflow-hidden px-4 py-8 sm:px-5 md:px-8 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="min-w-0 space-y-5">
-            {!file && (
-              <label className="flex min-h-64 cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-300 bg-white p-8 text-center shadow-sm transition hover:border-blue-300 hover:bg-blue-50/30">
-                <input
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-
-                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                  <UploadCloud size={32} />
-                </div>
-
-                <h2 className="text-lg font-semibold text-slate-950">
-                  Upload PDF file
-                </h2>
-
-                <p className="mt-2 max-w-md text-sm leading-6 text-slate-600">
-                  Select one PDF file from your device.
-                </p>
-
-                <p className="mt-4 text-xs font-medium text-slate-400">
-                  PDF only • Processed locally in your browser
-                </p>
-              </label>
-            )}
+            </label>
 
             {error && (
               <div className="flex items-start justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                 <p>{error}</p>
-                <button onClick={() => setError("")}>
+                <button type="button" onClick={() => setError("")}>
                   <X size={18} />
                 </button>
               </div>
             )}
 
             {file && (
-              <div className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="mb-4 flex items-center justify-between gap-4">
                   <div>
-                    <h2 className="font-semibold text-slate-950">
+                    <h2 className="text-sm font-semibold text-slate-950">
                       Selected file
                     </h2>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-xs text-slate-500">
                       Total pages: {pageCount}
                     </p>
                   </div>
 
                   <button
+                    type="button"
                     onClick={clearFile}
-                    className="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={15} />
                     Clear
                   </button>
                 </div>
 
-                <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 p-4 sm:flex-row sm:items-center">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-                    <FileText size={22} />
+                <div className="flex items-start gap-3 rounded-2xl border border-slate-200 p-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                    <FileText size={20} />
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-slate-950">
+                    <p className="truncate text-sm font-semibold text-slate-950">
                       {file.name}
                     </p>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-xs text-slate-500">
                       {formatFileSize(file.size)}
                     </p>
                   </div>
-
-                  <button
-                    onClick={() => setPreviewFile(file)}
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
-                  >
-                    <Eye size={17} />
-                    Preview
-                  </button>
                 </div>
 
-                {compressedBlob && (
-                  <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                    <h3 className="font-semibold text-emerald-900">
+                {hasCompressedResult && (
+                  <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                    <h3 className="text-sm font-semibold text-emerald-900">
                       Compression completed
                     </h3>
 
-                    <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+                    <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
                       <div className="rounded-xl bg-white p-3">
                         <p className="text-slate-500">Original</p>
                         <p className="mt-1 font-semibold text-slate-950">
@@ -297,88 +283,121 @@ export default function CompressPdfPage() {
                     </div>
 
                     {compressedSize >= file.size && (
-                      <p className="mt-4 text-sm leading-6 text-amber-700">
+                      <p className="mt-3 text-xs leading-5 text-amber-700">
                         This PDF could not be reduced further with basic browser
-                        optimization. Image-heavy PDFs need advanced image
-                        recompression.
+                        optimization.
                       </p>
                     )}
-
-                    <button
-                      type="button"
-                      onClick={downloadCompressedPdf}
-                      className="mt-4 inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
-                    >
-                      <Download size={16} />
-                      Download again
-                    </button>
                   </div>
                 )}
               </div>
             )}
-          </div>
-
-          <aside className="h-fit min-w-0 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 lg:sticky lg:top-6">
-            <h2 className="font-semibold text-slate-950">Compress summary</h2>
-
-            <div className="mt-5 space-y-4 text-sm">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <span className="text-slate-500">File selected</span>
-                <span className="font-semibold text-slate-950">
-                  {file ? "Yes" : "No"}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <span className="text-slate-500">Original size</span>
-                <span className="font-semibold text-slate-950">
-                  {file ? formatFileSize(file.size) : "-"}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <span className="text-slate-500">Result size</span>
-                <span className="font-semibold text-slate-950">
-                  {compressedSize ? formatFileSize(compressedSize) : "-"}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <span className="text-slate-500">Upload to server</span>
-                <span className="font-semibold text-emerald-600">No</span>
-              </div>
-            </div>
 
             <button
-              onClick={compressPdf}
-              disabled={isProcessing || !file}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              type="button"
+              onClick={
+                hasCompressedResult ? downloadCompressedPdf : compressPdf
+              }
+              disabled={isProcessing || (!hasCompressedResult && !file)}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               {isProcessing ? (
                 <>
                   <Loader2 size={18} className="animate-spin" />
                   Compressing...
                 </>
+              ) : hasCompressedResult ? (
+                <>
+                  <Download size={18} />
+                  Download Compressed PDF
+                </>
               ) : (
                 <>
                   <Minimize2 size={18} />
-                  Compress & Download
+                  Compress PDF
                 </>
               )}
             </button>
 
-            <p className="mt-4 text-xs leading-5 text-slate-500">
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <p className="font-semibold text-slate-950">
+                  {file ? formatFileSize(file.size) : "-"}
+                </p>
+                <p className="mt-1 text-slate-500">Original</p>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <p className="font-semibold text-slate-950">
+                  {compressedSize ? formatFileSize(compressedSize) : "-"}
+                </p>
+                <p className="mt-1 text-slate-500">Result</p>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <p className="font-semibold text-emerald-600">
+                  {compressedSize ? `${reduction.toFixed(1)}%` : "-"}
+                </p>
+                <p className="mt-1 text-slate-500">Reduced</p>
+              </div>
+            </div>
+
+            <p className="text-xs leading-5 text-slate-500">
               Basic compression does not recompress embedded images. Some PDFs
               may not get smaller.
             </p>
-          </aside>
+          </div>
         </section>
-      </main>
 
-      <PdfPreviewModal
-        file={previewFile}
-        onClose={() => setPreviewFile(null)}
-      />
-    </>
+        <section className="min-h-130 bg-slate-100 p-4 md:p-5">
+          <div className="flex h-full min-h-120 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white">
+            <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3">
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-slate-950">
+                  {hasCompressedResult
+                    ? "Compressed preview"
+                    : "Original preview"}
+                </h2>
+                <p className="truncate text-xs text-slate-500">
+                  {file
+                    ? hasCompressedResult
+                      ? "Compressed PDF is ready"
+                      : file.name
+                    : "No file selected"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex-1 bg-slate-50">
+              {activePreviewUrl ? (
+                <iframe
+                  src={activePreviewUrl}
+                  title={
+                    hasCompressedResult
+                      ? "Compressed PDF preview"
+                      : "Original PDF preview"
+                  }
+                  className="h-full w-full"
+                />
+              ) : (
+                <div className="flex h-full min-h-105 items-center justify-center p-6">
+                  <div className="text-center">
+                    <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm">
+                      <FileText size={28} />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-950">
+                      PDF preview will appear here
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Upload a PDF to preview it automatically.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
+    </AppShell>
   );
 }
