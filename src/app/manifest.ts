@@ -7,10 +7,11 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "toolkitPDF",
     description:
       "Free PDF tools for merging, splitting, compressing, and unlocking PDF files.",
-    start_url: "/",
+    start_url: "/tools",
     scope: "/",
     display: "standalone",
     background_color: "#ffffff",
+    theme_color: "#ffffff",
     icons: [
       {
         src: "/icons/icon-192.png",
@@ -26,6 +27,7 @@ export default function manifest(): MetadataRoute.Manifest {
         src: "/icons/icon-512-maskable.png",
         sizes: "512x512",
         type: "image/png",
+        purpose: "maskable",
       },
     ],
   };
