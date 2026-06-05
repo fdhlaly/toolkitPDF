@@ -12,9 +12,10 @@ import {
   Unlock,
   Minimize2,
   FileText,
+  Wrench,
 } from "lucide-react";
 
-export type ToolStatus = "ready";
+export type ToolStatus = "ready" | "soon" | "beta";
 
 export type Tool = {
   title: string;
@@ -108,5 +109,12 @@ export const tools: Tool[] = [
     href: "/tools/unlock",
     icon: Unlock,
     status: "ready",
+  },
+  {
+    title: "Coming Soon",
+    description: "Get ready for the next features.",
+    href: "/tools/soon",
+    icon: Wrench,
+    status: "soon",
   },
 ];
