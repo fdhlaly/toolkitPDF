@@ -1,19 +1,17 @@
 "use client";
 
-import PdfPreviewModal from "@/components/PdfPreviewModal";
-import Link from "next/link";
+import AppShell from "@/components/AppShell";
+import { PDFDocument } from "pdf-lib";
 import {
-  ArrowLeft,
   Clipboard,
   Download,
-  Eye,
   FileText,
   Loader2,
   Trash2,
   UploadCloud,
   X,
 } from "lucide-react";
-import { ChangeEvent, useState } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
 
 const formatFileSize = (size: number) => {
   if (size < 1024 * 1024) {
@@ -25,18 +23,29 @@ const formatFileSize = (size: number) => {
 
 export default function ExtractTextPdfPage() {
   const [file, setFile] = useState<File | null>(null);
-  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [originalPreviewUrl, setOriginalPreviewUrl] = useState("");
   const [pageCount, setPageCount] = useState(0);
   const [extractedText, setExtractedText] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    return () => {
+      if (originalPreviewUrl) {
+        URL.revokeObjectURL(originalPreviewUrl);
+      }
+    };
+  }, [originalPreviewUrl]);
+
+  const resetExtractedResult = () => {
+    setExtractedText("");
+    setIsCopied(false);
+  };
+
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     try {
       setError("");
-      setExtractedText("");
-      setIsCopied(false);
 
       const selectedFile = event.target.files?.[0];
 
@@ -48,31 +57,44 @@ export default function ExtractTextPdfPage() {
 
       if (!isPdf) {
         setError("Only PDF files are allowed.");
+        event.target.value = "";
         return;
       }
 
+      const arrayBuffer = await selectedFile.arrayBuffer();
+      const pdf = await PDFDocument.load(arrayBuffer);
+      const previewUrl = URL.createObjectURL(selectedFile);
+
+      resetExtractedResult();
       setFile(selectedFile);
+      setOriginalPreviewUrl(previewUrl);
+      setPageCount(pdf.getPageCount());
     } catch {
-      setError("Failed to load PDF file.");
+      setError(
+        "Failed to load PDF file. Make sure the file is valid and not password-protected.",
+      );
     } finally {
       event.target.value = "";
     }
   };
 
   const clearFile = () => {
+    resetExtractedResult();
+
+    if (originalPreviewUrl) {
+      URL.revokeObjectURL(originalPreviewUrl);
+    }
+
     setFile(null);
-    setPreviewFile(null);
+    setOriginalPreviewUrl("");
     setPageCount(0);
-    setExtractedText("");
-    setIsCopied(false);
     setError("");
   };
 
   const extractText = async () => {
     try {
       setError("");
-      setExtractedText("");
-      setIsCopied(false);
+      resetExtractedResult();
 
       if (!file) {
         setError("Please upload a PDF file first.");
@@ -179,82 +201,57 @@ export default function ExtractTextPdfPage() {
     URL.revokeObjectURL(url);
   };
 
+  const hasExtractedText = Boolean(extractedText);
+
   return (
-    <>
-      <main className="min-h-screen overflow-x-hidden bg-slate-50">
-        <section className="border-b border-slate-200 bg-white">
-          <div className="mx-auto max-w-5xl px-5 py-6 md:px-8">
-            <Link
-              href="/"
-              className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-950"
-            >
-              <ArrowLeft size={18} />
-              Back to tools
-            </Link>
+    <AppShell
+      title="Extract Text"
+      description="Extract selectable text from PDF files"
+      activeHref="/tools/extract-text"
+      showMobileBackLink
+      contentClassName="flex-1 overflow-hidden"
+    >
+      <div className="grid h-full overflow-hidden lg:grid-cols-[420px_1fr]">
+        <section className="overflow-y-auto border-b border-slate-200 p-4 md:p-5 lg:border-b-0 lg:border-r">
+          <div className="space-y-4">
+            <label className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center transition hover:border-blue-300 hover:bg-blue-50/40">
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                onChange={handleFileChange}
+              />
 
-            <div>
-              <p className="mb-3 inline-flex rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
-                Ready tool
+              <div className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-white text-blue-600 shadow-sm">
+                <UploadCloud size={26} />
+              </div>
+
+              <h2 className="text-sm font-semibold text-slate-950">
+                Drop or select PDF
+              </h2>
+
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                Upload one text-based PDF, then extract the text.
               </p>
-
-              <h1 className="text-3xl font-bold tracking-tight text-slate-950 md:text-5xl">
-                Extract Text
-              </h1>
-
-              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-                Extract selectable text from PDF files. For scanned or
-                image-based PDFs, use OCR PDF later.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="mx-auto grid w-full max-w-5xl gap-6 overflow-hidden px-4 py-8 sm:px-5 md:px-8 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="min-w-0 space-y-5">
-            {!file && (
-              <label className="flex min-h-64 cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-300 bg-white p-8 text-center shadow-sm transition hover:border-blue-300 hover:bg-blue-50/30">
-                <input
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-
-                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                  <UploadCloud size={32} />
-                </div>
-
-                <h2 className="text-lg font-semibold text-slate-950">
-                  Upload PDF file
-                </h2>
-
-                <p className="mt-2 max-w-md text-sm leading-6 text-slate-600">
-                  Select one PDF file from your device.
-                </p>
-
-                <p className="mt-4 text-xs font-medium text-slate-400">
-                  PDF only • Processed locally in your browser
-                </p>
-              </label>
-            )}
+            </label>
 
             {error && (
               <div className="flex items-start justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                 <p>{error}</p>
-                <button onClick={() => setError("")}>
+                <button type="button" onClick={() => setError("")}>
                   <X size={18} />
                 </button>
               </div>
             )}
 
             {file && (
-              <div className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="mb-4 flex items-center justify-between gap-4">
                   <div>
-                    <h2 className="font-semibold text-slate-950">
+                    <h2 className="text-sm font-semibold text-slate-950">
                       Selected file
                     </h2>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-xs text-slate-500">
                       {pageCount > 0
                         ? `Total pages: ${pageCount}`
                         : "Ready to extract"}
@@ -262,124 +259,47 @@ export default function ExtractTextPdfPage() {
                   </div>
 
                   <button
+                    type="button"
                     onClick={clearFile}
-                    className="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={15} />
                     Clear
                   </button>
                 </div>
 
-                <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 p-4 sm:flex-row sm:items-center">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-                    <FileText size={22} />
+                <div className="flex items-start gap-3 rounded-2xl border border-slate-200 p-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                    <FileText size={20} />
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-slate-950">
+                    <p className="truncate text-sm font-semibold text-slate-950">
                       {file.name}
                     </p>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-xs text-slate-500">
                       {formatFileSize(file.size)}
                     </p>
                   </div>
-
-                  <button
-                    onClick={() => setPreviewFile(file)}
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
-                  >
-                    <Eye size={17} />
-                    Preview
-                  </button>
                 </div>
-
-                {extractedText && (
-                  <div className="mt-6">
-                    <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <h3 className="font-semibold text-slate-950">
-                          Extracted text
-                        </h3>
-                        <p className="mt-1 text-sm text-slate-500">
-                          You can copy or download the result as .txt.
-                        </p>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={copyText}
-                          className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
-                        >
-                          <Clipboard size={16} />
-                          {isCopied ? "Copied" : "Copy"}
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={downloadText}
-                          className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
-                        >
-                          <Download size={16} />
-                          Download TXT
-                        </button>
-                      </div>
-                    </div>
-
-                    <textarea
-                      value={extractedText}
-                      readOnly
-                      rows={16}
-                      className="block w-full max-w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700 outline-none"
-                    />
-                  </div>
-                )}
               </div>
             )}
-          </div>
-
-          <aside className="h-fit min-w-0 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 lg:sticky lg:top-6">
-            <h2 className="font-semibold text-slate-950">
-              Extract text summary
-            </h2>
-
-            <div className="mt-5 space-y-4 text-sm">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <span className="text-slate-500">File selected</span>
-                <span className="font-semibold text-slate-950">
-                  {file ? "Yes" : "No"}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <span className="text-slate-500">Total pages</span>
-                <span className="font-semibold text-slate-950">
-                  {pageCount || "-"}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <span className="text-slate-500">Text extracted</span>
-                <span className="font-semibold text-slate-950">
-                  {extractedText ? "Yes" : "No"}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <span className="text-slate-500">Upload to server</span>
-                <span className="font-semibold text-emerald-600">No</span>
-              </div>
-            </div>
 
             <button
-              onClick={extractText}
-              disabled={isProcessing || !file}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              type="button"
+              onClick={hasExtractedText ? downloadText : extractText}
+              disabled={isProcessing || (!hasExtractedText && !file)}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               {isProcessing ? (
                 <>
                   <Loader2 size={18} className="animate-spin" />
                   Extracting...
+                </>
+              ) : hasExtractedText ? (
+                <>
+                  <Download size={18} />
+                  Download TXT
                 </>
               ) : (
                 <>
@@ -389,17 +309,93 @@ export default function ExtractTextPdfPage() {
               )}
             </button>
 
-            <p className="mt-4 text-xs leading-5 text-slate-500">
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <p className="font-semibold text-slate-950">
+                  {pageCount || "-"}
+                </p>
+                <p className="mt-1 text-slate-500">Pages</p>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <p className="font-semibold text-slate-950">
+                  {hasExtractedText ? "Ready" : "-"}
+                </p>
+                <p className="mt-1 text-slate-500">Text</p>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <p className="font-semibold text-emerald-600">No</p>
+                <p className="mt-1 text-slate-500">Upload</p>
+              </div>
+            </div>
+
+            <p className="text-xs leading-5 text-slate-500">
               This tool only works for text-based PDFs. Scanned PDFs need OCR.
             </p>
-          </aside>
+          </div>
         </section>
-      </main>
 
-      <PdfPreviewModal
-        file={previewFile}
-        onClose={() => setPreviewFile(null)}
-      />
-    </>
+        <section className="min-h-130 bg-slate-100 p-4 md:p-5">
+          <div className="flex h-full min-h-120 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white">
+            <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3">
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-slate-950">
+                  {hasExtractedText ? "Extracted text" : "Original preview"}
+                </h2>
+                <p className="truncate text-xs text-slate-500">
+                  {file
+                    ? hasExtractedText
+                      ? "Text extraction result is ready"
+                      : file.name
+                    : "No file selected"}
+                </p>
+              </div>
+
+              {hasExtractedText && (
+                <button
+                  type="button"
+                  onClick={copyText}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+                >
+                  <Clipboard size={15} />
+                  {isCopied ? "Copied" : "Copy"}
+                </button>
+              )}
+            </div>
+
+            <div className="flex-1 bg-slate-50">
+              {hasExtractedText ? (
+                <textarea
+                  value={extractedText}
+                  readOnly
+                  className="h-full min-h-105 w-full resize-none border-0 bg-white p-5 text-sm leading-6 text-slate-700 outline-none"
+                />
+              ) : originalPreviewUrl ? (
+                <iframe
+                  src={originalPreviewUrl}
+                  title="Original PDF preview"
+                  className="h-full w-full"
+                />
+              ) : (
+                <div className="flex h-full min-h-105 items-center justify-center p-6">
+                  <div className="text-center">
+                    <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm">
+                      <FileText size={28} />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-950">
+                      PDF preview will appear here
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Upload a PDF to preview it automatically.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
+    </AppShell>
   );
 }

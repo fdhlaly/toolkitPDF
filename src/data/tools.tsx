@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react";
 import {
   FilePlus2,
   Scissors,
@@ -13,89 +14,99 @@ import {
   FileText,
 } from "lucide-react";
 
-export const tools = [
+export type ToolStatus = "ready";
+
+export type Tool = {
+  title: string;
+  description: string;
+  href: string;
+  icon: LucideIcon;
+  status: ToolStatus;
+};
+
+export const tools: Tool[] = [
   {
     title: "Merge PDF",
-    description: "Combine multiple PDF files into one clean document.",
+    description: "Combine multiple PDF files into one document.",
     href: "/tools/merge",
-    icon: <FilePlus2 size={22} />,
-    status: "ready" as const,
+    icon: FilePlus2,
+    status: "ready",
   },
   {
     title: "Split PDF",
-    description: "Extract selected pages or separate a PDF into smaller files.",
+    description: "Extract selected pages from a PDF file.",
     href: "/tools/split",
-    icon: <Scissors size={22} />,
-    status: "ready" as const,
+    icon: Scissors,
+    status: "ready",
   },
   {
     title: "Rotate Pages",
-    description: "Rotate PDF pages left or right before downloading.",
+    description: "Rotate all or selected PDF pages.",
     href: "/tools/rotate",
-    icon: <RotateCw size={22} />,
-    status: "ready" as const,
+    icon: RotateCw,
+    status: "ready",
   },
   {
     title: "Reorder Pages",
-    description: "Drag and arrange PDF pages into the order you need.",
+    description: "Rearrange PDF pages with a custom order.",
     href: "/tools/reorder",
-    icon: <ArrowUpDown size={22} />,
-    status: "ready" as const,
+    icon: ArrowUpDown,
+    status: "ready",
   },
   {
     title: "Watermark PDF",
-    description: "Add text watermark to your PDF documents.",
+    description: "Add text watermark to PDF documents.",
     href: "/tools/watermark",
-    icon: <Stamp size={22} />,
-    status: "ready" as const,
+    icon: Stamp,
+    status: "ready",
   },
   {
     title: "Page Numbers",
-    description: "Automatically add page numbers to PDF files.",
+    description: "Add page numbers to PDF files.",
     href: "/tools/page-numbers",
-    icon: <Hash size={22} />,
-    status: "ready" as const,
+    icon: Hash,
+    status: "ready",
   },
   {
     title: "Image to PDF",
-    description: "Convert JPG, PNG, or WebP images into a PDF.",
+    description: "Convert images into one PDF file.",
     href: "/tools/image-to-pdf",
-    icon: <ImageIcon size={22} />,
-    status: "ready" as const,
+    icon: ImageIcon,
+    status: "ready",
   },
   {
     title: "Extract Text",
-    description: "Extract readable text from PDF documents.",
+    description: "Extract selectable text from PDF documents.",
     href: "/tools/extract-text",
-    icon: <FileText size={22} />,
-    status: "ready" as const,
+    icon: FileText,
+    status: "ready",
   },
   {
     title: "OCR PDF",
-    description: "Read text from scanned PDF pages using OCR.",
+    description: "Read text from scanned PDF pages.",
     href: "/tools/ocr",
-    icon: <ScanText size={22} />,
-    status: "ready" as const,
+    icon: ScanText,
+    status: "ready",
   },
   {
     title: "Compress PDF",
-    description: "Reduce PDF file size for sharing and storage.",
+    description: "Reduce PDF file size for sharing.",
     href: "/tools/compress",
-    icon: <Minimize2 size={22} />,
-    status: "ready" as const,
+    icon: Minimize2,
+    status: "ready",
   },
   {
     title: "Protect PDF",
     description: "Add password protection to PDF files.",
     href: "/tools/protect",
-    icon: <Lock size={22} />,
-    status: "ready" as const,
+    icon: Lock,
+    status: "ready",
   },
   {
     title: "Unlock PDF",
     description: "Remove password protection from supported PDF files.",
     href: "/tools/unlock",
-    icon: <Unlock size={22} />,
-    status: "ready" as const,
+    icon: Unlock,
+    status: "ready",
   },
 ];

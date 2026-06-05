@@ -1,11 +1,8 @@
 "use client";
 
-import PdfPreviewModal from "@/components/PdfPreviewModal";
+import AppShell from "@/components/AppShell";
 import { createPdfBlobFromBytes, downloadBlob, runQpdf } from "@/lib/qpdf";
-import Link from "next/link";
 import {
-  ArrowLeft,
-  Eye,
   FileText,
   Loader2,
   Trash2,
@@ -13,7 +10,7 @@ import {
   UploadCloud,
   X,
 } from "lucide-react";
-import { ChangeEvent, useState } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
 
 const formatFileSize = (size: number) => {
   if (size < 1024 * 1024) {
@@ -25,10 +22,18 @@ const formatFileSize = (size: number) => {
 
 export default function UnlockPdfPage() {
   const [file, setFile] = useState<File | null>(null);
-  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [unlockedPreviewUrl, setUnlockedPreviewUrl] = useState("");
   const [password, setPassword] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    return () => {
+      if (unlockedPreviewUrl) {
+        URL.revokeObjectURL(unlockedPreviewUrl);
+      }
+    };
+  }, [unlockedPreviewUrl]);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     setError("");
@@ -48,13 +53,18 @@ export default function UnlockPdfPage() {
     }
 
     setFile(selectedFile);
+    setUnlockedPreviewUrl("");
     setPassword("");
     event.target.value = "";
   };
 
   const clearFile = () => {
+    if (unlockedPreviewUrl) {
+      URL.revokeObjectURL(unlockedPreviewUrl);
+    }
+
     setFile(null);
-    setPreviewFile(null);
+    setUnlockedPreviewUrl("");
     setPassword("");
     setError("");
   };
@@ -92,6 +102,13 @@ export default function UnlockPdfPage() {
       const blob = createPdfBlobFromBytes(outputBytes);
       const originalName = file.name.replace(/\.pdf$/i, "");
 
+      if (unlockedPreviewUrl) {
+        URL.revokeObjectURL(unlockedPreviewUrl);
+      }
+
+      const previewUrl = URL.createObjectURL(blob);
+      setUnlockedPreviewUrl(previewUrl);
+
       downloadBlob(blob, `${originalName}-unlocked-toolkitPDF.pdf`);
     } catch {
       setError(
@@ -103,171 +120,101 @@ export default function UnlockPdfPage() {
   };
 
   return (
-    <>
-      <main className="min-h-screen overflow-x-hidden bg-slate-50">
-        <section className="border-b border-slate-200 bg-white">
-          <div className="mx-auto max-w-5xl px-5 py-6 md:px-8">
-            <Link
-              href="/"
-              className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-950"
-            >
-              <ArrowLeft size={18} />
-              Back to tools
-            </Link>
+    <AppShell
+      title="Unlock PDF"
+      description="Remove password protection from supported PDFs"
+      activeHref="/tools/unlock"
+      showMobileBackLink
+      contentClassName="flex-1 overflow-hidden"
+    >
+      <div className="grid h-full overflow-hidden lg:grid-cols-[380px_1fr]">
+        <section className="border-b border-slate-200 p-4 md:p-5 lg:border-b-0 lg:border-r">
+          <div className="space-y-4">
+            <label className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center transition hover:border-blue-300 hover:bg-blue-50/40">
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                onChange={handleFileChange}
+              />
 
-            <div>
-              <p className="mb-3 inline-flex rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
-                Ready tool
+              <div className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-white text-blue-600 shadow-sm">
+                <UploadCloud size={26} />
+              </div>
+
+              <h2 className="text-sm font-semibold text-slate-950">
+                Drop or select PDF
+              </h2>
+
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                Preview appears after the file is unlocked.
               </p>
-
-              <h1 className="text-3xl font-bold tracking-tight text-slate-950 md:text-5xl">
-                Unlock PDF
-              </h1>
-
-              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-                Remove password protection from supported PDF files. For files
-                with an open password, enter the correct password first.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="mx-auto grid w-full max-w-5xl gap-6 overflow-hidden px-4 py-8 sm:px-5 md:px-8 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="min-w-0 space-y-5">
-            {!file && (
-              <label className="flex min-h-64 cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-300 bg-white p-8 text-center shadow-sm transition hover:border-blue-300 hover:bg-blue-50/30">
-                <input
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-
-                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                  <UploadCloud size={32} />
-                </div>
-
-                <h2 className="text-lg font-semibold text-slate-950">
-                  Upload locked PDF
-                </h2>
-
-                <p className="mt-2 max-w-md text-sm leading-6 text-slate-600">
-                  Select one password-protected PDF file from your device.
-                </p>
-
-                <p className="mt-4 text-xs font-medium text-slate-400">
-                  PDF only • Processed locally in your browser
-                </p>
-              </label>
-            )}
+            </label>
 
             {error && (
               <div className="flex items-start justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                 <p>{error}</p>
-                <button onClick={() => setError("")}>
+                <button type="button" onClick={() => setError("")}>
                   <X size={18} />
                 </button>
               </div>
             )}
 
             {file && (
-              <div className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h2 className="font-semibold text-slate-950">
-                      Selected file
-                    </h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Enter password if this file requires one to open.
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={clearFile}
-                    className="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-                  >
-                    <Trash2 size={16} />
-                    Clear
-                  </button>
-                </div>
-
-                <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 p-4 sm:flex-row sm:items-center">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-                    <FileText size={22} />
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                    <FileText size={20} />
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-slate-950">
+                    <p className="truncate text-sm font-semibold text-slate-950">
                       {file.name}
                     </p>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-xs text-slate-500">
                       {formatFileSize(file.size)}
                     </p>
                   </div>
 
                   <button
-                    onClick={() => setPreviewFile(file)}
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
+                    type="button"
+                    onClick={clearFile}
+                    className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                    aria-label="Clear selected file"
                   >
-                    <Eye size={17} />
-                    Preview
+                    <Trash2 size={17} />
                   </button>
-                </div>
-
-                <div className="mt-6">
-                  <label
-                    htmlFor="password"
-                    className="text-sm font-semibold text-slate-950"
-                  >
-                    PDF password
-                  </label>
-
-                  <input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder="Leave empty for owner-restricted PDFs"
-                    className="mt-2 block w-full max-w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
-                  />
-
-                  <p className="mt-2 text-xs leading-5 text-slate-500">
-                    Empty password may work only for permission-restricted PDFs.
-                    PDFs with an open password need the correct password.
-                  </p>
                 </div>
               </div>
             )}
-          </div>
 
-          <aside className="h-fit min-w-0 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 lg:sticky lg:top-6">
-            <h2 className="font-semibold text-slate-950">Unlock summary</h2>
+            <div>
+              <label
+                htmlFor="password"
+                className="text-sm font-semibold text-slate-950"
+              >
+                PDF password
+              </label>
 
-            <div className="mt-5 space-y-4 text-sm">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <span className="text-slate-500">File selected</span>
-                <span className="font-semibold text-slate-950">
-                  {file ? "Yes" : "No"}
-                </span>
-              </div>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Leave empty if not required"
+                className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
+              />
 
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <span className="text-slate-500">Password entered</span>
-                <span className="font-semibold text-slate-950">
-                  {password ? "Yes" : "No"}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <span className="text-slate-500">Upload to server</span>
-                <span className="font-semibold text-emerald-600">No</span>
-              </div>
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                Open-password PDFs need the correct password.
+              </p>
             </div>
 
             <button
+              type="button"
               onClick={unlockPdf}
               disabled={isProcessing || !file}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               {isProcessing ? (
                 <>
@@ -282,18 +229,71 @@ export default function UnlockPdfPage() {
               )}
             </button>
 
-            <p className="mt-4 text-xs leading-5 text-slate-500">
-              This tool cannot recover unknown passwords. It only decrypts PDFs
-              you can legally access.
-            </p>
-          </aside>
-        </section>
-      </main>
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <p className="font-semibold text-slate-950">
+                  {file ? "Yes" : "No"}
+                </p>
+                <p className="mt-1 text-slate-500">File</p>
+              </div>
 
-      <PdfPreviewModal
-        file={previewFile}
-        onClose={() => setPreviewFile(null)}
-      />
-    </>
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <p className="font-semibold text-slate-950">
+                  {password ? "Yes" : "No"}
+                </p>
+                <p className="mt-1 text-slate-500">Password</p>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <p className="font-semibold text-emerald-600">No</p>
+                <p className="mt-1 text-slate-500">Upload</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="min-h-130 bg-slate-100 p-4 md:p-5">
+          <div className="flex h-full min-h-120 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-950">
+                  Preview
+                </h2>
+                <p className="text-xs text-slate-500">
+                  {unlockedPreviewUrl
+                    ? "Unlocked PDF result"
+                    : "No unlocked file yet"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex-1 bg-slate-50">
+              {unlockedPreviewUrl ? (
+                <iframe
+                  src={unlockedPreviewUrl}
+                  title="Unlocked PDF preview"
+                  className="h-full w-full"
+                />
+              ) : (
+                <div className="flex h-full min-h-105 items-center justify-center p-6">
+                  <div className="text-center">
+                    <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm">
+                      <FileText size={28} />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-950">
+                      Preview appears after unlock
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Upload a PDF, enter the password if needed, then unlock
+                      it.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
+    </AppShell>
   );
 }
