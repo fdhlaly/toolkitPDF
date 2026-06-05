@@ -8,9 +8,9 @@ type QpdfRuntime = {
 };
 
 type QpdfFactoryOptions = {
-  locateFile: () => string;
-  print?: () => void;
-  printErr?: () => void;
+  locateFile: (path: string) => string;
+  print?: (text: string) => void;
+  printErr?: (text: string) => void;
 };
 
 type QpdfFactory = (options: QpdfFactoryOptions) => Promise<unknown>;
@@ -22,31 +22,25 @@ type RunQpdfOptions = {
 
 let qpdfPromise: Promise<QpdfRuntime> | null = null;
 
-export const getQpdfModule = async () => {
-  if (!qpdfPromise) {
-    qpdfPromise = import("@neslinesli93/qpdf-wasm").then(async (module) => {
-      const createQpdf = module.default as unknown as QpdfFactory;
+const runWithMutedConsole = async <T>(callback: () => Promise<T> | T) => {
+  const originalConsoleError = console.error;
+  const originalConsoleWarn = console.warn;
+  const originalConsoleLog = console.log;
 
-      const qpdf = await createQpdf({
-        locateFile: () => "/wasm/qpdf.wasm",
-        print: () => undefined,
-        printErr: () => undefined,
-      });
-
-      return qpdf as QpdfRuntime;
-    });
-  }
-
-  return qpdfPromise;
-};
-
-const safeUnlink = (qpdf: QpdfRuntime, path: string) => {
   try {
-    qpdf.FS.unlink(path);
-  } catch {}
+    console.error = () => undefined;
+    console.warn = () => undefined;
+    console.log = () => undefined;
+
+    return await callback();
+  } finally {
+    console.error = originalConsoleError;
+    console.warn = originalConsoleWarn;
+    console.log = originalConsoleLog;
+  }
 };
 
-const runSilently = (callback: () => number | void) => {
+const runSilently = <T>(callback: () => T) => {
   const originalConsoleError = console.error;
   const originalConsoleWarn = console.warn;
   const originalConsoleLog = console.log;
@@ -62,6 +56,37 @@ const runSilently = (callback: () => number | void) => {
     console.warn = originalConsoleWarn;
     console.log = originalConsoleLog;
   }
+};
+
+export const getQpdfModule = async () => {
+  if (!qpdfPromise) {
+    qpdfPromise = runWithMutedConsole(async () => {
+      const qpdfModule = await import("@neslinesli93/qpdf-wasm");
+      const createQpdf = qpdfModule.default as unknown as QpdfFactory;
+
+      const qpdf = await createQpdf({
+        locateFile: (path: string) => {
+          if (path.endsWith(".wasm")) {
+            return "/wasm/qpdf.wasm";
+          }
+
+          return path;
+        },
+        print: () => undefined,
+        printErr: () => undefined,
+      });
+
+      return qpdf as QpdfRuntime;
+    });
+  }
+
+  return qpdfPromise;
+};
+
+const safeUnlink = (qpdf: QpdfRuntime, path: string) => {
+  try {
+    qpdf.FS.unlink(path);
+  } catch {}
 };
 
 export const runQpdf = async ({ inputBytes, buildArgs }: RunQpdfOptions) => {
